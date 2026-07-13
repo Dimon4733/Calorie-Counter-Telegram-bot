@@ -1,10 +1,13 @@
+Вот код без комментариев, скопируй и замени полностью свой bot.py.
+
+```python
 import sqlite3
 import logging
 from datetime import date, timedelta
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
-TOKEN = "---"
+TOKEN = "8688072352:AAHTUTJNaxsiV_d09vb1JnyqR6LiWjo7di4"
 
 logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -110,7 +113,7 @@ main_keyboard = ReplyKeyboardMarkup(
         ["/once", "/activities"],
         ["/set_norm", "/set_weight"],
         ["/undo", "/clear", "/week"],
-        ["/help", "/start"]
+        ["/help", "/cancel", "/start"]
     ],
     resize_keyboard=True
 )
@@ -145,15 +148,44 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "🗑 <b>Управление</b>\n"
         "• /undo – отменить последнюю запись\n"
         "• /undo 3 – отменить запись номер 3 из списка /today\n"
-        "• /clear – полностью очистить сегодняшний день\n\n"
+        "• /clear – полностью очистить сегодняшний день\n"
+        "• /cancel – выйти из режима ожидания (если бот что-то просит)\n\n"
         "❓ /help – показать эту подсказку"
     )
     await update.message.reply_html(text, reply_markup=main_keyboard)
 
-async def handle_food_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if context.user_data.get('awaiting_input'):
-        return
+        context.user_data.pop('awaiting_input', None)
+        await update.message.reply_text("✅ Действие отменено. Можно продолжать.")
+    else:
+        await update.message.reply_text("Нет активного действия для отмены.")
 
+async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    state = context.user_data.get('awaiting_input')
+    if state:
+        text = update.message.text.strip()
+        if state == 'add_product':
+            await process_add_product_input(update, context, text)
+        elif state == 'set_norm':
+            await process_set_norm_input(update, context, text)
+        elif state == 'set_weight':
+            await process_set_weight_input(update, context, text)
+        elif state == 'search':
+            await process_search_input(update, context, text)
+        elif state == 'act':
+            await process_act_input(update, context, text)
+        elif state == 'once':
+            await process_once_input(update, context, text)
+        elif state == 'undo':
+            await process_undo_input(update, context, text)
+        else:
+            await update.message.reply_text("Неизвестное состояние. Используйте /cancel.")
+            context.user_data.pop('awaiting_input', None)
+        return
+    await handle_food_text(update, context)
+
+async def handle_food_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip()
     parts = text.split()
     if len(parts) < 2:
@@ -184,31 +216,6 @@ async def handle_food_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode="HTML"
         )
     conn.close()
-
-async def handle_input_with_state(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    state = context.user_data.get('awaiting_input')
-    if not state:
-        return
-
-    text = update.message.text.strip()
-
-    if state == 'add_product':
-        await process_add_product_input(update, context, text)
-    elif state == 'set_norm':
-        await process_set_norm_input(update, context, text)
-    elif state == 'set_weight':
-        await process_set_weight_input(update, context, text)
-    elif state == 'search':
-        await process_search_input(update, context, text)
-    elif state == 'act':
-        await process_act_input(update, context, text)
-    elif state == 'once':
-        await process_once_input(update, context, text)
-    elif state == 'undo':
-        await process_undo_input(update, context, text)
-    else:
-        await update.message.reply_text("Неизвестная команда. Начните заново.")
-        context.user_data.pop('awaiting_input', None)
 
 async def process_add_product_input(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str):
     parts = text.rsplit(maxsplit=1)
@@ -657,6 +664,7 @@ def main():
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("help", help_command))
+    app.add_handler(CommandHandler("cancel", cancel))
     app.add_handler(CommandHandler("search", search_product))
     app.add_handler(CommandHandler("add_product", add_product))
     app.add_handler(CommandHandler("once", once_food))
@@ -670,11 +678,11 @@ def main():
     app.add_handler(CommandHandler("clear", clear_today))
     app.add_handler(CommandHandler("week", week_stats))
 
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_input_with_state))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_food_text))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
 
     print("Бот запущен...")
     app.run_polling(allowed_updates=Update.ALL_TYPES)
 
 if __name__ == "__main__":
     main()
+```
