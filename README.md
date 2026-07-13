@@ -1,6 +1,3 @@
-Вот код без комментариев, скопируй и замени полностью свой bot.py.
-
-```python
 import sqlite3
 import logging
 from datetime import date, timedelta
@@ -685,4 +682,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-```
